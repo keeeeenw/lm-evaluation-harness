@@ -338,8 +338,33 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
         cache_requests=args.cache_requests
     )
 
+    model = args.model
+    if "microllama" in model:
+        from lm_eval.models.huggingface import HFLM
+        import torch
+
+        from transformers import LlamaTokenizer
+        from transformers import LlamaForCausalLM
+
+        # e.g. microllama-pretrained_300M_115000
+        checkpoint_dir = model.split("-")[1]
+        out_dir = os.path.join("/home/ken/workspace/TinyLlama/out/", checkpoint_dir)
+        model_path = os.path.join(out_dir, "pytorch_model.bin")
+        state_dict = torch.load(model_path)
+        pretrained_model = LlamaForCausalLM.from_pretrained(
+            out_dir, local_files_only=True, state_dict=state_dict
+        )
+        pretrained_model = pretrained_model.to(args.device)
+        tokenizer_path = Path("/home/ken/workspace/TinyLlama/llama-tokenizer/")
+        tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path)
+        model = HFLM(pretrained=pretrained_model,
+                     tokenizer=tokenizer,
+                     device=args.device,
+                     batch_size=args.batch_size,
+                     dtype="float32")
+
     results = evaluator.simple_evaluate(
-        model=args.model,
+        model=model,
         model_args=args.model_args,
         tasks=task_names,
         num_fewshot=args.num_fewshot,
